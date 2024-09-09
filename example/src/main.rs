@@ -134,6 +134,7 @@ impl Application for App {
             let mut table = table(
                 self.header.clone(),
                 self.body.clone(),
+                &0,
                 &self.columns,
                 &self.rows,
                 Message::SyncHeader,
@@ -259,6 +260,7 @@ impl fmt::Display for Category {
 
 impl<'a> table::Column<'a, Message, Theme, Renderer> for Column {
     type Row = Row;
+    type State = i32;
 
     fn header(&'a self, _col_index: usize) -> Element<'a, Message> {
         let content = match self.kind {
@@ -276,6 +278,7 @@ impl<'a> table::Column<'a, Message, Theme, Renderer> for Column {
         &'a self,
         _col_index: usize,
         row_index: usize,
+        _state: &'a Self::State,
         row: &'a Self::Row,
     ) -> Element<'a, Message> {
         let content: Element<_> = match self.kind {
