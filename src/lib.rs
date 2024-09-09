@@ -20,13 +20,14 @@ pub mod table {
     /// `on_sync` is needed to keep the header & footer scrollables in sync with
     /// the body scrollable. It is up to the consumer to emit a [`scroll_to`](iced_widget::scrollable::scroll_to) operation
     /// from `update` when this message is received.
-    pub fn table<'a, Column, Row, Message, Theme>(
+    pub fn table<'a, State, Column, Row, Message, Theme>(
         header: scrollable::Id,
         body: scrollable::Id,
+        state: &'a State,
         columns: &'a [Column],
         rows: &'a [Row],
         on_sync: fn(scrollable::AbsoluteOffset) -> Message,
-    ) -> Table<'a, Column, Row, Message, Theme>
+    ) -> Table<'a, State, Column, Row, Message, Theme>
     where
         Theme: style::Catalog + container::Catalog,
     {
@@ -34,6 +35,7 @@ pub mod table {
             header,
             body,
             footer: None,
+            state,
             columns,
             rows,
             on_sync,
@@ -53,6 +55,9 @@ pub mod table {
         /// A row of data.
         type Row;
 
+        /// The type of some arbitrary data that can be used when generating cell content.
+        type State;
+
         /// Define the header [`Element`] for this column.
         fn header(&'a self, col_index: usize) -> Element<'a, Message, Theme, Renderer>;
 
@@ -61,6 +66,7 @@ pub mod table {
             &'a self,
             col_index: usize,
             row_index: usize,
+            state: &'a Self::State,
             row: &'a Self::Row,
         ) -> Element<'a, Message, Theme, Renderer>;
 
@@ -82,13 +88,14 @@ pub mod table {
 
     /// An element to display rows of data into columns.
     #[allow(missing_debug_implementations)]
-    pub struct Table<'a, Column, Row, Message, Theme>
+    pub struct Table<'a, State, Column, Row, Message, Theme>
     where
         Theme: style::Catalog + container::Catalog,
     {
         header: scrollable::Id,
         body: scrollable::Id,
         footer: Option<scrollable::Id>,
+        state: &'a State,
         columns: &'a [Column],
         rows: &'a [Row],
         on_sync: fn(scrollable::AbsoluteOffset) -> Message,
@@ -102,7 +109,7 @@ pub mod table {
         scrollbar: scrollable::Scrollbar,
     }
 
-    impl<'a, Column, Row, Message, Theme> Table<'a, Column, Row, Message, Theme>
+    impl<'a, State, Column, Row, Message, Theme> Table<'a, State, Column, Row, Message, Theme>
     where
         Theme: style::Catalog + container::Catalog,
     {
@@ -180,19 +187,21 @@ pub mod table {
         }
     }
 
-    impl<'a, Column, Row, Message, Theme, Renderer> From<Table<'a, Column, Row, Message, Theme>>
+    impl<'a, State, Column, Row, Message, Theme, Renderer>
+        From<Table<'a, State, Column, Row, Message, Theme>>
         for Element<'a, Message, Theme, Renderer>
     where
         Renderer: iced_core::Renderer + 'a,
         Theme: style::Catalog + container::Catalog + scrollable::Catalog + 'a,
-        Column: self::Column<'a, Message, Theme, Renderer, Row = Row>,
+        Column: self::Column<'a, Message, Theme, Renderer, State = State, Row = Row>,
         Message: 'a + Clone,
     {
-        fn from(table: Table<'a, Column, Row, Message, Theme>) -> Self {
+        fn from(table: Table<'a, State, Column, Row, Message, Theme>) -> Self {
             let Table {
                 header,
                 body,
                 footer,
+                state,
                 columns,
                 rows,
                 on_sync,
@@ -246,6 +255,7 @@ pub mod table {
                             body_container(
                                 col_index,
                                 row_index,
+                                state,
                                 column,
                                 _row,
                                 min_column_width,
@@ -315,7 +325,7 @@ pub mod table {
         }
     }
 
-    fn header_container<'a, Column, Row, Message, Theme, Renderer>(
+    fn header_container<'a, State, Column, Row, Message, Theme, Renderer>(
         index: usize,
         column: &'a Column,
         on_drag: Option<fn(usize, f32) -> Message>,
@@ -328,7 +338,7 @@ pub mod table {
     where
         Renderer: iced_core::Renderer + 'a,
         Theme: style::Catalog + container::Catalog + 'a,
-        Column: self::Column<'a, Message, Theme, Renderer, Row = Row>,
+        Column: self::Column<'a, Message, Theme, Renderer, State = State, Row = Row>,
         Message: 'a + Clone,
     {
         let content = container(column.header(index))
@@ -348,9 +358,10 @@ pub mod table {
         )
     }
 
-    fn body_container<'a, Column, Row, Message, Theme, Renderer>(
+    fn body_container<'a, State, Column, Row, Message, Theme, Renderer>(
         col_index: usize,
         row_index: usize,
+        state: &'a State,
         column: &'a Column,
         row: &'a Row,
         min_column_width: f32,
@@ -360,12 +371,12 @@ pub mod table {
     where
         Renderer: iced_core::Renderer + 'a,
         Theme: style::Catalog + container::Catalog + 'a,
-        Column: self::Column<'a, Message, Theme, Renderer, Row = Row>,
+        Column: self::Column<'a, Message, Theme, Renderer, State = State, Row = Row>,
         Message: 'a + Clone,
     {
         let width = column.width() + column.resize_offset().unwrap_or_default();
 
-        let content = container(column.cell(col_index, row_index, row))
+        let content = container(column.cell(col_index, row_index, state, row))
             .width(Length::Fill)
             .padding(cell_padding);
 
@@ -376,7 +387,7 @@ pub mod table {
             .into()
     }
 
-    fn footer_container<'a, Column, Row, Message, Theme, Renderer>(
+    fn footer_container<'a, State, Column, Row, Message, Theme, Renderer>(
         index: usize,
         column: &'a Column,
         rows: &'a [Row],
@@ -390,7 +401,7 @@ pub mod table {
     where
         Renderer: iced_core::Renderer + 'a,
         Theme: style::Catalog + container::Catalog + 'a,
-        Column: self::Column<'a, Message, Theme, Renderer, Row = Row>,
+        Column: self::Column<'a, Message, Theme, Renderer, State = State, Row = Row>,
         Message: 'a + Clone,
     {
         let content = if let Some(footer) = column.footer(index, rows) {
