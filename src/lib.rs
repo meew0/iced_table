@@ -8,6 +8,8 @@ mod style;
 
 pub mod table {
     //! Display rows of data into columns
+    use std::rc::Rc;
+
     use iced_core::{Element, Length, Padding};
     use iced_widget::{column, container, row, scrollable, Space};
 
@@ -20,16 +22,17 @@ pub mod table {
     /// `on_sync` is needed to keep the header & footer scrollables in sync with
     /// the body scrollable. It is up to the consumer to emit a [`scroll_to`](iced_widget::scrollable::scroll_to) operation
     /// from `update` when this message is received.
-    pub fn table<'a, State, Column, Row, Message, Theme>(
+    pub fn table<'a, State, Column, Row, Message, Theme, F>(
         header: scrollable::Id,
         body: scrollable::Id,
         state: &'a State,
         columns: &'a [Column],
         rows: &'a [Row],
-        on_sync: fn(scrollable::AbsoluteOffset) -> Message,
+        on_sync: F,
     ) -> Table<'a, State, Column, Row, Message, Theme>
     where
         Theme: style::StyleSheet + container::StyleSheet,
+        F: Fn(scrollable::AbsoluteOffset) -> Message + 'a,
     {
         Table {
             header,
@@ -38,7 +41,7 @@ pub mod table {
             state,
             columns,
             rows,
-            on_sync,
+            on_sync: Box::new(on_sync),
             on_column_drag: None,
             on_column_release: None,
             min_width: 0.0,
@@ -98,8 +101,8 @@ pub mod table {
         state: &'a State,
         columns: &'a [Column],
         rows: &'a [Row],
-        on_sync: fn(scrollable::AbsoluteOffset) -> Message,
-        on_column_drag: Option<fn(usize, f32) -> Message>,
+        on_sync: Box<dyn Fn(scrollable::AbsoluteOffset) -> Message + 'a>,
+        on_column_drag: Option<Rc<dyn Fn(usize, f32) -> Message + 'a>>,
         on_column_release: Option<Message>,
         min_width: f32,
         min_column_width: f32,
@@ -122,13 +125,12 @@ pub mod table {
         ///
         /// `on_release` is emited when the resize is finished. It is up to the consumer to apply the last
         /// `on_drag` offset to the column's stored width.
-        pub fn on_column_resize(
-            self,
-            on_drag: fn(usize, f32) -> Message,
-            on_release: Message,
-        ) -> Self {
+        pub fn on_column_resize<F>(self, on_drag: F, on_release: Message) -> Self
+        where
+            F: Fn(usize, f32) -> Message + 'a,
+        {
             Self {
-                on_column_drag: Some(on_drag),
+                on_column_drag: Some(Rc::new(on_drag)),
                 on_column_release: Some(on_release),
                 ..self
             }
@@ -227,7 +229,7 @@ pub mod table {
                         header_container(
                             index,
                             column,
-                            on_column_drag,
+                            on_column_drag.clone(),
                             on_column_release.clone(),
                             min_column_width,
                             divider_width,
@@ -295,7 +297,7 @@ pub mod table {
                                 index,
                                 column,
                                 rows,
-                                on_column_drag,
+                                on_column_drag.clone(),
                                 on_column_release.clone(),
                                 min_column_width,
                                 divider_width,
@@ -332,7 +334,7 @@ pub mod table {
     fn header_container<'a, State, Column, Row, Message, Theme, Renderer>(
         index: usize,
         column: &'a Column,
-        on_drag: Option<fn(usize, f32) -> Message>,
+        on_drag: Option<Rc<dyn Fn(usize, f32) -> Message + 'a>>,
         on_release: Option<Message>,
         min_column_width: f32,
         divider_width: f32,
@@ -395,7 +397,7 @@ pub mod table {
         index: usize,
         column: &'a Column,
         rows: &'a [Row],
-        on_drag: Option<fn(usize, f32) -> Message>,
+        on_drag: Option<Rc<dyn Fn(usize, f32) -> Message + 'a>>,
         on_release: Option<Message>,
         min_column_width: f32,
         divider_width: f32,
@@ -434,7 +436,7 @@ pub mod table {
         index: usize,
         column: &'a Column,
         content: Element<'a, Message, Theme, Renderer>,
-        on_drag: Option<fn(usize, f32) -> Message>,
+        on_drag: Option<Rc<dyn Fn(usize, f32) -> Message + 'a>>,
         on_release: Option<Message>,
         min_column_width: f32,
         divider_width: f32,
