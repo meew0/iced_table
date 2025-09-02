@@ -20,8 +20,8 @@ members = [
 __docs = ["iced_widget/lazy"]
 
 [dependencies]
-iced_core = "0.13.1"
-iced_widget = "0.13.1"
+iced_core = "0.13.2"
+iced_widget = "0.13.4"
 
 [package.metadata.docs.rs]
 all-features = true
